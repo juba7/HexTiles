@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -56,7 +56,10 @@ namespace HexTiles
         /// </summary>
         private static void GenerateTop(HexCoords position, List<Vector3> vertices, List<int> triangles, List<Vector2> uv, float diameter)
         {
+
             var uvBasePos = HexCoordsToUV(position);
+            //shift the UVs to hide the artifacts in the distance
+            uvBasePos = new Vector2(uvBasePos.x + 50, uvBasePos.y);
 
             vertices.AddRange(HexMetrics.GetHexVertices(diameter));
 

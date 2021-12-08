@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Linq;
 using System;
@@ -132,6 +132,24 @@ namespace HexTiles
         }
         [SerializeField]
         private Material currentMaterial;
+
+        /// <summary>
+        /// The current Object that will be painted on top of tiles. Serialised here so that it will be saved for convenience
+        /// when we have to reload scripts.
+        /// </summary>
+        public GameObject CurrentObject
+        {
+            get
+            {
+                return currentObject;
+            }
+            set
+            {
+                currentObject = value;
+            }
+        }
+        [SerializeField]
+        private GameObject currentObject;
 
         /// <summary>
         /// Highlighted tile for editing

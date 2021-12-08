@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,7 +37,8 @@ namespace HexTiles.Editor
         {
             "Select",
             "Paint tiles",
-            "Material paint", 
+            "Material paint",
+            "Objects paint",
             "Erase",
             "Settings"
         };
@@ -108,16 +109,16 @@ namespace HexTiles.Editor
                         }
                     })
                     .Event<SceneClickedEventArgs>("SceneClicked", (state, eventArgs) =>
-                    {
-                        if (eventArgs.Button == 0)
                         {
-                            var tile = TryFindTileForMousePosition(eventArgs.Position);
-                            if (tile != null)
+                            if (eventArgs.Button == 0)
                             {
-                                hexMap.SelectedTile = tile.Coordinates;
+                                var tile = TryFindTileForMousePosition(eventArgs.Position);
+                                if (tile != null)
+                                {
+                                    hexMap.SelectedTile = tile.Coordinates;
+                                }
                             }
-                        }
-                    })
+                        })
                 .End()
                 .State<PaintState>("Paint tiles")
                     .Enter(state => 
@@ -317,8 +318,76 @@ namespace HexTiles.Editor
                         state.ModifiedChunks.Clear();
                     })
                 .End()
+                .State<ChunkEditingState>("Objects paint")
+                    .Enter(state =>{selectedToolIndex = 3;})
+                    .Update((state, dt) =>
+                    {
+                        bool sceneNeedsRepaint = false;
+
+                        EditorUtilities.ShowHelpBox("Objects paint", "Paint over existing tiles to add objects on top.");
+
+                        var newBrushSize = EditorGUILayout.IntSlider("Brush size", brushSize, 1, 10);
+                        if (newBrushSize != brushSize)
+                        {
+                            brushSize = newBrushSize;
+
+                            sceneNeedsRepaint = true;
+                        }
+
+                        hexMap.CurrentObject = (GameObject)EditorGUILayout.ObjectField("Game Object", hexMap.CurrentMaterial, typeof(GameObject), false);
+
+                        EditorGUILayout.Space();
+
+                        //if (GUILayout.Button("Apply to all tiles"))
+                        //{
+                        //    ApplyCurrentMaterialToAllTiles();
+                        //    MarkSceneDirty();
+
+                        //    sceneNeedsRepaint = true;
+                        //}
+
+                        if (sceneNeedsRepaint)
+                        {
+                            SceneView.RepaintAll();
+                        }
+                    })
+                    .Event("MouseMove", state =>
+                    {
+                        HighlightTilesUnderMousePosition();
+
+                        Event.current.Use();
+                    })
+                    .Event<SceneClickedEventArgs>("SceneClicked", (state, eventArgs) =>
+                    {
+                        if (eventArgs.Button == 0)
+                        {
+                            var tilePosition = TryFindTileForMousePosition(eventArgs.Position);
+                            if (tilePosition != null && hexMap.ContainsTile(tilePosition.Coordinates))
+                            {
+                                // Select that the tile that was clicked on.
+                                hexMap.SelectedTile = tilePosition.Coordinates;
+
+                                // Change the object displayed on the tile
+                                var tilesUnderBrush = tilePosition.Coordinates.CoordinateRange(brushSize - 1)
+                                    .Where(coords => hexMap.ContainsTile(coords));
+                                foreach (var coords in tilesUnderBrush)
+                                {
+                                    ReplaceMaterialOnTile(coords, state.ModifiedChunks);
+                                }
+                            }
+
+                            Event.current.Use();
+                        }
+                    })
+                    .Event("MouseUp", state => 
+                    {
+                        // Flush list of modified chunks so that they are not included in 
+                        // the next undo action.
+                        state.ModifiedChunks.Clear();
+                    })
+                .End()
                 .State<ChunkEditingState>("Erase")
-                    .Enter(evt => selectedToolIndex = 3)
+                    .Enter(evt => selectedToolIndex = 4)
                     .Update((state, dt) => 
                     {
                         EditorUtilities.ShowHelpBox("Erase", "Click and drag on existing hex tiles to remove them.");
@@ -376,7 +445,7 @@ namespace HexTiles.Editor
                 .State<SettingsState>("Settings")
                     .Enter(state => 
                     {
-                        selectedToolIndex = 4;
+                        selectedToolIndex = 5;
                         state.HexSize = hexMap.tileDiameter;
                         state.ChunkSize = hexMap.ChunkSize;
 
@@ -469,6 +538,7 @@ namespace HexTiles.Editor
                     new ButtonIcon{ NormalIcon = LoadImage("mouse-pointer_44_pro"), SelectedIcon = LoadImage("mouse-pointer_44_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("add-hex_44_pro"), SelectedIcon = LoadImage("add-hex_44_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("paint-brush_44_pro"), SelectedIcon = LoadImage("paint-brush_44_selected") },
+                    new ButtonIcon{ NormalIcon = LoadImage("object_icon_pro"), SelectedIcon = LoadImage("object_icon_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("eraser_44_pro"), SelectedIcon = LoadImage("eraser_44_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("cog_44_pro"), SelectedIcon = LoadImage("cog_44_selected") },
                 };
@@ -479,6 +549,7 @@ namespace HexTiles.Editor
                     new ButtonIcon{ NormalIcon = LoadImage("mouse-pointer_44"), SelectedIcon = LoadImage("mouse-pointer_44_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("add-hex_44"), SelectedIcon = LoadImage("add-hex_44_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("paint-brush_44"), SelectedIcon = LoadImage("paint-brush_44_selected") },
+                    new ButtonIcon{ NormalIcon = LoadImage("object_icon"), SelectedIcon = LoadImage("object_icon_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("eraser_44"), SelectedIcon = LoadImage("eraser_44_selected") },
                     new ButtonIcon{ NormalIcon = LoadImage("cog_44"), SelectedIcon = LoadImage("cog_44_selected") },
                 };
@@ -498,6 +569,41 @@ namespace HexTiles.Editor
         /// for the purposes for registering undo actions.
         /// </summary>
         private void ReplaceMaterialOnTile(HexCoords coords, HashSet<HexChunk> modifiedChunks)
+        {
+            var oldChunk = hexMap.FindChunkForCoordinates(coords);
+            // Skip if the material is already the same.
+            if (oldChunk.Material == hexMap.CurrentMaterial)
+            {
+                return;
+            }
+
+            if (oldChunk != null && !modifiedChunks.Contains(oldChunk))
+            {
+                RecordChunkModifiedUndo(oldChunk);
+                modifiedChunks.Add(oldChunk);
+            }
+            var newChunk = hexMap.FindChunkForCoordinatesAndMaterial(coords, hexMap.CurrentMaterial);
+            if (newChunk != null && newChunk != oldChunk && !modifiedChunks.Contains(newChunk))
+            {
+                RecordChunkModifiedUndo(newChunk);
+                modifiedChunks.Add(newChunk);
+            }
+
+            var action = hexMap.ReplaceMaterialOnTile(coords, hexMap.CurrentMaterial);
+
+            if (action.Operation == ModifiedTileInfo.ChunkOperation.Added)
+            {
+                RecordChunkAddedUndo(action.Chunk);
+            }
+        }
+        
+        /// <summary>
+        /// Replace the material on the specified tile with the currently selected
+        /// material. A HashSet of the chunks that have been modified so far in this 
+        /// action must be passed in so that this can record which chunks were affected
+        /// for the purposes for registering undo actions.
+        /// </summary>
+        private void ReplaceObjectOnTile(HexCoords coords, HashSet<HexChunk> modifiedChunks)
         {
             var oldChunk = hexMap.FindChunkForCoordinates(coords);
             // Skip if the material is already the same.
@@ -694,8 +800,9 @@ namespace HexTiles.Editor
                 new GUIContent(GetToolButtonIcon(0), "Select"),
                 new GUIContent(GetToolButtonIcon(1), "Paint tiles"),
                 new GUIContent(GetToolButtonIcon(2), "Material paint"),
-                new GUIContent(GetToolButtonIcon(3), "Delete"),
-                new GUIContent(GetToolButtonIcon(4), "Settings")
+                new GUIContent(GetToolButtonIcon(3), "Objects paint"),
+                new GUIContent(GetToolButtonIcon(4), "Delete"),
+                new GUIContent(GetToolButtonIcon(5), "Settings")
             };
 
             GUILayout.BeginHorizontal();
