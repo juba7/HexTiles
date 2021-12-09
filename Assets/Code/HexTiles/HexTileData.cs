@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -33,5 +33,10 @@ namespace HexTiles
         /// Material applied to the tile.
         /// </summary>
         public Material Material { get; private set; }
+
+        /// <summary>
+        /// Material applied to the tile.
+        /// </summary>
+        public GameObject GameObject { get; private set; }
     }
 }

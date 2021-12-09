@@ -394,6 +394,55 @@ namespace HexTiles
         }
 
         /// <summary>
+        /// Add a tile to the map. Returns the chunk object containing the new tile.
+        /// </summary>
+        public ModifiedTileInfo CreateAndAddObject(HexPosition position, GameObject gameobject)
+        {
+            var coords = position.Coordinates;
+            var elevation = position.Elevation;
+
+            var chunk = FindChunkForCoordinates(coords);
+            var chunkOperation = ModifiedTileInfo.ChunkOperation.Modified;
+
+            if (chunk == null)
+            {
+                throw new Exception("Chunck dont exist with this coords!");
+            }
+            
+            GameObject objectInstance = Instantiate(gameobject, chunk.gameObject.transform);
+            objectInstance.transform.position = coords.ToOffset
+
+            // See if there's already an object at the specified position.
+            var tile = FindTileForCoords(coords);
+            if (tile != null)
+            {
+
+
+            }
+                
+            
+            TryRemovingObject(coords);
+
+            chunk.AddObject(position,);
+
+            // Generate side pieces
+            // Note that we also need to update all the tiles adjacent to this one so that any side pieces that could be 
+            // Obscured by this one are removed.
+            foreach (var side in HexMetrics.AdjacentHexes)
+            {
+                var adjacentTilePos = coords + side;
+                var adjacentTile = FindTileForCoords(adjacentTilePos);
+                if (adjacentTile != null)
+                {
+                    var adjacentTileChunk = FindChunkForCoordinatesAndMaterial(adjacentTilePos, adjacentTile.Material);
+                    SetUpSidePiecesForTile(adjacentTilePos, adjacentTileChunk);
+                }
+            }
+            SetUpSidePiecesForTile(coords, chunk);
+
+            return new ModifiedTileInfo(chunk, chunkOperation);
+        }
+        /// <summary>
         /// Add a new chunk with the specified material and bounds around the specified coordinates.
         /// </summary>
         private HexChunk CreateChunkForCoordinates(HexCoords coordinates, Material material)
@@ -430,6 +479,7 @@ namespace HexTiles
             }
             return matchingChunks.FirstOrDefault();
         }
+
 
         /// <summary>
         /// Create a new chunk with the specified bounds and material.
@@ -517,6 +567,32 @@ namespace HexTiles
             return true;
         }
 
+        /// <summary>
+        /// Attempt to remove the tile at the specified position.
+        /// Returns true if it was removed successfully, false if no tile was found at that position.
+        /// </summary>
+        public bool TryRemovingObject(HexCoords position)
+        {
+            var tile = FindTileForCoords(position);
+            if (tile == null)
+            {
+                return false;
+            }
+
+            var chunksWithTile = Chunks.Where(c => c.Tiles.Select(pos => pos.Coordinates).Contains(position));
+            if (chunksWithTile == null || chunksWithTile.Count() < 1)
+            {
+                Debug.LogError("Tile found in internal tile collection but not in scene. Removing", this);
+            }
+
+            foreach (var chunk in chunksWithTile)
+            {
+                chunk.RemoveObject(position);
+            }
+
+            return true;
+        }
+
         private GameObject SpawnTileObject(HexPosition position)
         {
             var newObject = new GameObject("Tile [" + position.Coordinates.Q + ", " + position.Coordinates.R + "]");
@@ -583,6 +659,30 @@ namespace HexTiles
             TryRemovingTile(tileCoords);
 
             return CreateAndAddTile(tile.Position, material);
+        }
+
+        /// <summary>
+        /// Remove the tile at the specified coordinates and replace it with one with the specified material.
+        /// Returns the chunk with the tile that was modified.
+        /// </summary>
+        public ModifiedTileInfo ReplaceObjectOnTile(HexCoords tileCoords, GameObject gameobject)
+        {
+            HexTileData tile;
+            if (!TryGetTile(tileCoords, out tile))
+            {
+                throw new ArgumentOutOfRangeException("Tried replacing or adding object on tile but map contains no tile at position " + tileCoords);
+            }
+
+            // Early out if the material is the same.
+            if (tile.GameObject == gameobject)
+            {
+                var chunk = FindChunkForCoordinates(tileCoords);
+                return new ModifiedTileInfo(chunk, ModifiedTileInfo.ChunkOperation.Modified);
+            }
+
+            TryRemovingObject(tileCoords);
+
+            return CreateAndAddObject(tile.Position, gameobject);
         }
 
         /// <summary>

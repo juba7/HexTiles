@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -101,6 +101,8 @@ namespace HexTiles
 
         public IList<HexPosition> Tiles { get { return tiles; } }
 
+        public List<Tuple<HexPosition,GameObject>> objects = new List<Tuple<HexPosition, GameObject>>();
+
         /// <summary>
         /// Add a tile to this chunk.
         /// </summary>
@@ -112,11 +114,48 @@ namespace HexTiles
         }
 
         /// <summary>
+        /// Add a Object to this chunk.
+        /// </summary>
+        internal void AddObject(HexPosition position,GameObject ObjectInstance)
+        {
+            objects.Add(new Tuple<HexPosition, GameObject> (position, ObjectInstance));
+           // Dirty = true;
+        }
+
+        /// <summary>
+        /// Add a Object to this chunk.
+        /// </summary>
+        internal void RemoveObject(HexCoords coords)
+        {
+            // remove objects
+            objects.ForEach(m =>
+            {
+                if (m.Item1.Coordinates.Equals(coords))
+                {
+                    if (Application.isEditor)
+                    {
+                        DestroyImmediate(m.Item2, false);
+                    }
+                    else
+                    {
+                        Destroy(m.Item2);
+                    }
+                }
+            });
+            objects.RemoveAll(m => m.Item1.Coordinates.Equals(coords));
+            // Dirty = true;
+        }
+
+        /// <summary>
         /// Remove a tile from this chunk.
         /// </summary>
         internal void RemoveTile(HexCoords coords)
         {
+            // remove Tiles
             tiles.RemoveAll(tile => tile.Coordinates.Equals(coords));
+
+            // remove objects
+            RemoveObject(coords);
 
             Dirty = true;
         }

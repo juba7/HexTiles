@@ -74,6 +74,10 @@ namespace HexTiles.Editor
         /// Current size of the area we want to effect by adding/removing/paining over tiles.
         /// </summary>
         int brushSize = 1;
+        /// <summary>
+        /// Current size of the area we want to effect by adding/removing/paining over tiles.
+        /// </summary>
+        bool eraiseMode = false;
 
         private static readonly string undoMessage = "Edited hex tiles";
 
@@ -334,7 +338,8 @@ namespace HexTiles.Editor
                             sceneNeedsRepaint = true;
                         }
 
-                        hexMap.CurrentObject = (GameObject)EditorGUILayout.ObjectField("Game Object", hexMap.CurrentMaterial, typeof(GameObject), false);
+                        hexMap.CurrentObject = (GameObject)EditorGUILayout.ObjectField("Game Object", hexMap.CurrentObject, typeof(GameObject), false);
+                        eraiseMode = EditorGUILayout.Toggle("Eraise", eraiseMode);
 
                         EditorGUILayout.Space();
 
@@ -370,9 +375,10 @@ namespace HexTiles.Editor
                                 // Change the object displayed on the tile
                                 var tilesUnderBrush = tilePosition.Coordinates.CoordinateRange(brushSize - 1)
                                     .Where(coords => hexMap.ContainsTile(coords));
+
                                 foreach (var coords in tilesUnderBrush)
                                 {
-                                    ReplaceMaterialOnTile(coords, state.ModifiedChunks);
+                                    ReplaceObjectOnTile(coords, state.ModifiedChunks);
                                 }
                             }
 
@@ -605,24 +611,20 @@ namespace HexTiles.Editor
         /// </summary>
         private void ReplaceObjectOnTile(HexCoords coords, HashSet<HexChunk> modifiedChunks)
         {
-            var oldChunk = hexMap.FindChunkForCoordinates(coords);
-            // Skip if the material is already the same.
-            if (oldChunk.Material == hexMap.CurrentMaterial)
+            var Chunk = hexMap.FindChunkForCoordinates(coords);
+            
+            if (Chunk != null && !modifiedChunks.Contains(Chunk))
             {
-                return;
+                RecordChunkModifiedUndo(Chunk);
+                modifiedChunks.Add(Chunk);
             }
 
-            if (oldChunk != null && !modifiedChunks.Contains(oldChunk))
-            {
-                RecordChunkModifiedUndo(oldChunk);
-                modifiedChunks.Add(oldChunk);
-            }
-            var newChunk = hexMap.FindChunkForCoordinatesAndMaterial(coords, hexMap.CurrentMaterial);
-            if (newChunk != null && newChunk != oldChunk && !modifiedChunks.Contains(newChunk))
-            {
-                RecordChunkModifiedUndo(newChunk);
-                modifiedChunks.Add(newChunk);
-            }
+            //var newChunk = oldChunk;
+            //if (Chunk != null && newChunk != oldChunk && !modifiedChunks.Contains(newChunk))
+            //{
+            //    //RecordChunkModifiedUndo(newChunk);
+            //    modifiedChunks.Add(nChunk);
+            //}
 
             var action = hexMap.ReplaceMaterialOnTile(coords, hexMap.CurrentMaterial);
 
