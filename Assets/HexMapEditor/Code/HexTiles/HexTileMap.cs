@@ -19,6 +19,7 @@ namespace HexTiles
         [SerializeField]
         private int chunkSize = 10;
 
+
         public int ChunkSize
         {
             get
@@ -150,6 +151,10 @@ namespace HexTiles
         }
         [SerializeField]
         private GameObject currentObject;
+
+        [HideInInspector]
+        public bool RandomRotation;
+
 
         /// <summary>
         /// Highlighted tile for editing
@@ -399,7 +404,7 @@ namespace HexTiles
         public ModifiedTileInfo CreateAndAddObject(HexPosition position, GameObject gameobject)
         {
             var coords = position.Coordinates;
-            var elevation = position.Elevation;
+            //var elevation = position.Elevation;
 
             var chunk = FindChunkForCoordinates(coords);
             var chunkOperation = ModifiedTileInfo.ChunkOperation.Modified;
@@ -408,37 +413,23 @@ namespace HexTiles
             {
                 throw new Exception("Chunck dont exist with this coords!");
             }
-            
+
             GameObject objectInstance = Instantiate(gameobject, chunk.gameObject.transform);
-            objectInstance.transform.position = coords.ToOffset
+            objectInstance.transform.position = position.GetPositionVector(1);
+            if(RandomRotation)
+                objectInstance.transform.eulerAngles = new Vector3(0,RandomRotation?UnityEngine.Random.Range(0f,360f):0,0);
 
             // See if there's already an object at the specified position.
             var tile = FindTileForCoords(coords);
             if (tile != null)
             {
-
-
+                tile.GameObject = objectInstance;
             }
                 
             
             TryRemovingObject(coords);
 
-            chunk.AddObject(position,);
-
-            // Generate side pieces
-            // Note that we also need to update all the tiles adjacent to this one so that any side pieces that could be 
-            // Obscured by this one are removed.
-            foreach (var side in HexMetrics.AdjacentHexes)
-            {
-                var adjacentTilePos = coords + side;
-                var adjacentTile = FindTileForCoords(adjacentTilePos);
-                if (adjacentTile != null)
-                {
-                    var adjacentTileChunk = FindChunkForCoordinatesAndMaterial(adjacentTilePos, adjacentTile.Material);
-                    SetUpSidePiecesForTile(adjacentTilePos, adjacentTileChunk);
-                }
-            }
-            SetUpSidePiecesForTile(coords, chunk);
+            chunk.AddObject(position, objectInstance);
 
             return new ModifiedTileInfo(chunk, chunkOperation);
         }
@@ -665,7 +656,7 @@ namespace HexTiles
         /// Remove the tile at the specified coordinates and replace it with one with the specified material.
         /// Returns the chunk with the tile that was modified.
         /// </summary>
-        public ModifiedTileInfo ReplaceObjectOnTile(HexCoords tileCoords, GameObject gameobject)
+        public ModifiedTileInfo ReplaceObjectOnTile(HexCoords tileCoords, GameObject gameobject )
         {
             HexTileData tile;
             if (!TryGetTile(tileCoords, out tile))
@@ -682,7 +673,20 @@ namespace HexTiles
 
             TryRemovingObject(tileCoords);
 
-            return CreateAndAddObject(tile.Position, gameobject);
+            return CreateAndAddObject(tile.Position, gameobject  );
+        }
+
+        public ModifiedTileInfo RemoveObjectOnTile(HexCoords tileCoords)
+        {
+            HexTileData tile;
+            if (!TryGetTile(tileCoords, out tile))
+            {
+                throw new ArgumentOutOfRangeException("Tried replacing or adding object on tile but map contains no tile at position " + tileCoords);
+            }
+
+            TryRemovingObject(tileCoords);
+            var chunk = FindChunkForCoordinates(tileCoords);
+            return new ModifiedTileInfo(chunk, ModifiedTileInfo.ChunkOperation.Modified);
         }
 
         /// <summary>

@@ -37,6 +37,6 @@ namespace HexTiles
         /// <summary>
         /// Material applied to the tile.
         /// </summary>
-        public GameObject GameObject { get; private set; }
+        public GameObject GameObject { get;  set; }
     }
 }

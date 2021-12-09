@@ -75,9 +75,14 @@ namespace HexTiles.Editor
         /// </summary>
         int brushSize = 1;
         /// <summary>
-        /// Current size of the area we want to effect by adding/removing/paining over tiles.
+        /// Remove object mode 
         /// </summary>
         bool eraiseMode = false;
+        /// <summary>
+        /// Random y rotation for object that are placed
+        /// </summary>
+        bool RandomRotation = false;        
+
 
         private static readonly string undoMessage = "Edited hex tiles";
 
@@ -331,6 +336,7 @@ namespace HexTiles.Editor
                         EditorUtilities.ShowHelpBox("Objects paint", "Paint over existing tiles to add objects on top.");
 
                         var newBrushSize = EditorGUILayout.IntSlider("Brush size", brushSize, 1, 10);
+                        
                         if (newBrushSize != brushSize)
                         {
                             brushSize = newBrushSize;
@@ -340,16 +346,9 @@ namespace HexTiles.Editor
 
                         hexMap.CurrentObject = (GameObject)EditorGUILayout.ObjectField("Game Object", hexMap.CurrentObject, typeof(GameObject), false);
                         eraiseMode = EditorGUILayout.Toggle("Eraise", eraiseMode);
+                        hexMap.RandomRotation = EditorGUILayout.Toggle("Random rotation", hexMap.RandomRotation);
 
                         EditorGUILayout.Space();
-
-                        //if (GUILayout.Button("Apply to all tiles"))
-                        //{
-                        //    ApplyCurrentMaterialToAllTiles();
-                        //    MarkSceneDirty();
-
-                        //    sceneNeedsRepaint = true;
-                        //}
 
                         if (sceneNeedsRepaint)
                         {
@@ -378,7 +377,14 @@ namespace HexTiles.Editor
 
                                 foreach (var coords in tilesUnderBrush)
                                 {
-                                    ReplaceObjectOnTile(coords, state.ModifiedChunks);
+                                    if (eraiseMode)
+                                    {
+                                        RemoveObjectOnTile(coords, state.ModifiedChunks);
+                                    }
+                                    else
+                                    {
+                                        ReplaceObjectOnTile(coords, state.ModifiedChunks);
+                                    }
                                 }
                             }
 
@@ -609,7 +615,7 @@ namespace HexTiles.Editor
         /// action must be passed in so that this can record which chunks were affected
         /// for the purposes for registering undo actions.
         /// </summary>
-        private void ReplaceObjectOnTile(HexCoords coords, HashSet<HexChunk> modifiedChunks)
+        private void ReplaceObjectOnTile(HexCoords coords, HashSet<HexChunk> modifiedChunks ,Quaternion objectRotation = default)
         {
             var Chunk = hexMap.FindChunkForCoordinates(coords);
             
@@ -619,14 +625,25 @@ namespace HexTiles.Editor
                 modifiedChunks.Add(Chunk);
             }
 
-            //var newChunk = oldChunk;
-            //if (Chunk != null && newChunk != oldChunk && !modifiedChunks.Contains(newChunk))
-            //{
-            //    //RecordChunkModifiedUndo(newChunk);
-            //    modifiedChunks.Add(nChunk);
-            //}
+            var action = hexMap.ReplaceObjectOnTile(coords, hexMap.CurrentObject);
 
-            var action = hexMap.ReplaceMaterialOnTile(coords, hexMap.CurrentMaterial);
+            if (action.Operation == ModifiedTileInfo.ChunkOperation.Added)
+            {
+                RecordChunkAddedUndo(action.Chunk);
+            }
+        }
+
+        private void RemoveObjectOnTile(HexCoords coords, HashSet<HexChunk> modifiedChunks)
+        {
+            var Chunk = hexMap.FindChunkForCoordinates(coords);
+
+            if (Chunk != null && !modifiedChunks.Contains(Chunk))
+            {
+                RecordChunkModifiedUndo(Chunk);
+                modifiedChunks.Add(Chunk);
+            }
+
+            var action = hexMap.RemoveObjectOnTile(coords);
 
             if (action.Operation == ModifiedTileInfo.ChunkOperation.Added)
             {

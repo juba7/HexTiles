@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: CustomHexGridMaterial
+  m_Name: GreenTileMaterial
   m_Shader: {fileID: -6465566751694194690, guid: 0e80c01e5daf59f42b72810b5763caaf,
     type: 3}
   m_ShaderKeywords: 
